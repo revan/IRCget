@@ -1,3 +1,5 @@
+#!/bin/python3
+
 import os
 import sys
 import struct
@@ -13,6 +15,7 @@ class IRCGet(irc.client.SimpleIRCClient):
         print("Initializing...")
         irc.client.SimpleIRCClient.__init__(self)
         self.received_bytes = 0
+        self.remaining = 0
         self.done = False
         self.channel = channel
         self.filename = ''
@@ -28,10 +31,10 @@ class IRCGet(irc.client.SimpleIRCClient):
             self.connection.quit()
 
     def on_join(self, connection, event):
-        """called when anyone joins"""
+        # JOIN message is received when anyone joins, including us
         if not self.done:
             self.done = True
-            self.search(self.query_function())
+            self.search()
 
     def on_ctcp(self, connection, event):
         try:
@@ -64,7 +67,7 @@ class IRCGet(irc.client.SimpleIRCClient):
             peerport = int(args[3])
             self.dcc = self.dcc_connect(peeraddress, peerport, "raw")
         except Exception as inst:
-            print(inst)
+            pass
 
     def on_dccmsg(self, connection, event):
         data = event.arguments[0]
@@ -80,25 +83,34 @@ class IRCGet(irc.client.SimpleIRCClient):
         print("Received file %s (%d bytes)." % (self.filename, self.received_bytes))
         self.received_bytes = 0
 
+        # Parse search results
         if "SearchBot" in self.filename:
             lines = self.parseSearch()
             selections = self.select_function(lines)
+
+            self.remaining = len(selections)
+
             for select in selections:
                 command = self.extractCommand(lines[int(select)])
                 self.connection.privmsg(self.channel, command)
+
         else:
             print("Attempting unrar...")
-            try:
-                os.system("unrar e \"%s\"" % (self.filename))
-            except:
-                print("Unrar failed.")
+            os.system("unrar e \"%s\"" % (self.filename))
+
+            self.remaining -= 1
+            if self.remaining > 0:
+                print("Waiting for %d downloads to complete." % (self.remaining))
+            else:
+                self.search()
 
 
     def on_disconnect(self, connection, event):
         print("Disconnecting.")
         sys.exit(0)
 
-    def search(self, query):
+    def search(self):
+        query = self.query_function()
         self.connection.privmsg(self.channel, "@search %s" % (query))
 
     def parseSearch(self):
