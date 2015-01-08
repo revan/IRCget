@@ -12,7 +12,7 @@ import irc.logging
 
 class IRCGet(irc.client.SimpleIRCClient):
     def __init__(self, channel, query_function, select_function):
-        print("Initializing...")
+        print("Connecting (this can take a minute)...")
         irc.client.SimpleIRCClient.__init__(self)
         self.received_bytes = 0
         self.remaining = 0
@@ -21,6 +21,7 @@ class IRCGet(irc.client.SimpleIRCClient):
         self.filename = ''
         self.query_function = query_function
         self.select_function = select_function
+        self.download_dir = 'downloads'
 
     def on_welcome(self, connection, event):
         if irc.client.is_channel(self.channel):
@@ -63,15 +64,18 @@ class IRCGet(irc.client.SimpleIRCClient):
             except:
                 self.filename = os.path.basename(args[1])
 
-            if os.path.exists(self.filename):
+            if not os.path.exists(self.download_dir):
+                os.makedirs(self.download_dir)
+            if os.path.exists(os.path.join(self.download_dir, self.filename)):
                 print("A file named", self.filename, "already exists. Deleting.")
-                os.remove(self.filename)
-            self.file = open(self.filename, "wb")
+                os.remove(os.path.join(self.download_dir, self.filename))
+
+            self.file = open(os.path.join(self.download_dir, self.filename), "wb")
             peeraddress = irc.client.ip_numstr_to_quad(args[2])
             peerport = int(args[3])
             self.dcc = self.dcc_connect(peeraddress, peerport, "raw")
         except Exception as inst:
-            pass
+            print(inst)
 
     def on_dccmsg(self, connection, event):
         data = event.arguments[0]
@@ -95,8 +99,10 @@ class IRCGet(irc.client.SimpleIRCClient):
             self.remaining = len(selections)
 
             for select in selections:
-                command = self.extractCommand(lines[int(select)])
-                self.connection.privmsg(self.channel, command)
+                line = int(select)
+                if 0 <= line < len(lines):
+                    command = self.extractCommand(lines[line])
+                    self.connection.privmsg(self.channel, command)
 
         else:
             print("Attempting unrar...")
@@ -118,15 +124,19 @@ class IRCGet(irc.client.SimpleIRCClient):
         self.connection.privmsg(self.channel, "@search %s" % (query))
 
     def parseSearch(self):
+        # TODO: make this cross-platform by removing system calls.
         print("Extracting zip")
-        os.system("unzip %s -d /tmp/ircget" % (self.filename))
-        os.system("mv /tmp/ircget/* /tmp/ircsearchresults.txt")
-        with open("/tmp/ircsearchresults.txt", "r") as f:
+        os.system("mkdir -p " + os.path.join(self.download_dir, "search"))
+        os.system("unzip \"" + os.path.join(self.download_dir, self.filename) + "\" -d "
+                + os.path.join(self.download_dir, "search"))
+        os.system("mv " + os.path.join(self.download_dir, "search", "* ")
+                        + os.path.join(self.download_dir, "searchresults.txt"))
+        with open(os.path.join(self.download_dir, "searchresults.txt"), "r") as f:
             return [line for line in f]
 
     def extractCommand(self, line):
         """Strips cruft from end of line."""
-        return re.search('!.*?(\.rar|\.zip|\.epub|\.mobi|\.pdf)', line).group(0)
+        return re.search('!.*?(\.rar|\.zip|\.epub|\.mobi|\.pdf|\..{3})', line).group(0)
 
 
 def get_args():
