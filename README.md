@@ -16,3 +16,8 @@ irc (python library)
 unzip
 unrar
 ```
+
+TODO:
+
+-	Concurrent downloads, or enforce serial downloads across hosts
+-	`curses` UI

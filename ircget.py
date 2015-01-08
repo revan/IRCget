@@ -32,30 +32,34 @@ class IRCGet(irc.client.SimpleIRCClient):
 
     def on_join(self, connection, event):
         # JOIN message is received when anyone joins, including us
+        # 'done' flag ensures we only act on the first JOIN
         if not self.done:
             self.done = True
             self.search()
 
     def on_ctcp(self, connection, event):
+        # Here we process SEND messages.
+        # We receive the message SEND "filename" num1 num2 num3
         try:
-            print(event.arguments[1])
             args = event.arguments[1].split()
             if args[0] != "SEND":
                 return
 
             try:
-                # Try extract text in quotes as filename
+                # Try extract text in quotes as filename, if there are quotes
                 s = event.arguments[1]
-                quotes_index = [i for i in range(len(s)) if s[i] == '"']
-                s = s[:quotes_index[0]] + s[quotes_index[1] + 1:]
-                print(s)
+                if re.compile('".*"').search(s) is not None:
+                    quotes_index = [i for i in range(len(s)) if s[i] == '"']
+                    self.filename = os.path.basename(s[quotes_index[0] + 1: quotes_index[1]])
 
-                self.filename = os.path.basename(s[quotes_index[0] + 1: quotes_index[1]])
+                    s = s[:quotes_index[0]] + s[quotes_index[1] + 1:]
 
-                # We've removed the quoted filename, so now we fix the address and port
-                s = s.split()
-                args[2] = s[1]
-                args[3] = s[2]
+                    # We've removed the quoted filename, so now we fix the address and port
+                    s = s.split()
+                    args[2] = s[1]
+                    args[3] = s[2]
+                else:
+                    self.filename = os.path.basename(args[1])
             except:
                 self.filename = os.path.basename(args[1])
 
@@ -100,7 +104,7 @@ class IRCGet(irc.client.SimpleIRCClient):
 
             self.remaining -= 1
             if self.remaining > 0:
-                print("Waiting for %d downloads to complete." % (self.remaining))
+                print("Still waiting for %d downloads to complete." % (self.remaining))
             else:
                 self.search()
 
@@ -139,7 +143,7 @@ def get_args():
 
 def query():
     """Callback to get query"""
-    return input('Search for: ')
+    return input('Search for (ctrl+c to exit): ')
 
 def select(lines):
     """Callback to select lines from search results"""
