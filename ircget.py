@@ -7,7 +7,8 @@ import argparse
 import re
 
 import irc.client
-import irc.logging
+import jaraco.logging
+import jaraco.stream
 
 
 class IRCGet(irc.client.SimpleIRCClient):
@@ -106,7 +107,7 @@ class IRCGet(irc.client.SimpleIRCClient):
 
         else:
             print("Attempting unrar...")
-            os.system("unrar e \"%s\"" % (self.filename))
+            os.system("unrar e \"%s\"" % os.path.join(self.download_dir, self.filename))
 
             self.remaining -= 1
             if self.remaining > 0:
@@ -147,7 +148,7 @@ def get_args():
     parser.add_argument('nickname')
     parser.add_argument('channel')
     parser.add_argument('-p', '--port', default=6667, type=int)
-    irc.logging.add_arguments(parser)
+    jaraco.logging.add_arguments(parser)
     return parser.parse_args()
 
 
@@ -165,12 +166,12 @@ def select(lines):
 
 def main():
     args = get_args()
-    irc.logging.setup(args)
+    jaraco.logging.setup(args)
 
     c = IRCGet(args.channel, query, select)
 
     # Don't crash on non UTF-8 input
-    irc.client.ServerConnection.buffer_class = irc.buffer.LenientDecodingLineBuffer
+    irc.client.ServerConnection.buffer_class = jaraco.stream.buffer.LenientDecodingLineBuffer
 
     try:
         c.connect(args.server, args.port, args.nickname)
