@@ -35,41 +35,35 @@ class IRCGet(irc.client.SimpleIRCClient):
     def on_ctcp(self, connection, event):
         # Here we process SEND messages.
         # We receive the message SEND "filename" num1 num2 num3
-        try:
-            args = event.arguments[1].split()
-            if args[0] != "SEND":
-                return
+        args = event.arguments[1].split()
+        if args[0] != "SEND":
+            return
 
-            try:
-                # Try extract text in quotes as filename, if there are quotes
-                s = event.arguments[1]
-                if re.compile('".*"').search(s) is not None:
-                    quotes_index = [i for i in range(len(s)) if s[i] == '"']
-                    self.filename = os.path.basename(s[quotes_index[0] + 1: quotes_index[1]])
+        # Try extract text in quotes as filename, if there are quotes
+        s = event.arguments[1]
+        if re.compile('".*"').search(s) is not None:
+            quotes_index = [i for i in range(len(s)) if s[i] == '"']
+            self.filename = os.path.basename(s[quotes_index[0] + 1: quotes_index[1]])
 
-                    s = s[:quotes_index[0]] + s[quotes_index[1] + 1:]
+            s = s[:quotes_index[0]] + s[quotes_index[1] + 1:]
 
-                    # We've removed the quoted filename, so now we fix the address and port
-                    s = s.split()
-                    args[2] = s[1]
-                    args[3] = s[2]
-                else:
-                    self.filename = os.path.basename(args[1])
-            except:
-                self.filename = os.path.basename(args[1])
+            # We've removed the quoted filename, so now we fix the address and port
+            s = s.split()
+            args[2] = s[1]
+            args[3] = s[2]
+        else:
+            self.filename = os.path.basename(args[1])
 
-            if not os.path.exists(self.download_dir):
-                os.makedirs(self.download_dir)
-            if os.path.exists(os.path.join(self.download_dir, self.filename)):
-                print("A file named", self.filename, "already exists. Deleting.")
-                os.remove(os.path.join(self.download_dir, self.filename))
+        if not os.path.exists(self.download_dir):
+            os.makedirs(self.download_dir)
+        if os.path.exists(os.path.join(self.download_dir, self.filename)):
+            print("A file named", self.filename, "already exists. Deleting.")
+            os.remove(os.path.join(self.download_dir, self.filename))
 
-            self.file = open(os.path.join(self.download_dir, self.filename), "wb")
-            peeraddress = irc.client.ip_numstr_to_quad(args[2])
-            peerport = int(args[3])
-            self.dcc = self.dcc_connect(peeraddress, peerport, "raw")
-        except Exception as inst:
-            print(inst)
+        self.file = open(os.path.join(self.download_dir, self.filename), "wb")
+        peeraddress = irc.client.ip_numstr_to_quad(args[2])
+        peerport = int(args[3])
+        self.dcc = self.dcc_connect(peeraddress, peerport, "raw")
 
     def on_dccmsg(self, connection, event):
         data = event.arguments[0]
