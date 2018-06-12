@@ -19,7 +19,6 @@ class IRCGet(irc.client.SimpleIRCClient):
     def __init__(self, channel, query_function, select_function):
         print("Connecting (this can take a minute)...")
         irc.client.SimpleIRCClient.__init__(self)
-        self.remaining = 0
         self.channel = channel
         self.query_function = query_function
         self.select_function = select_function
@@ -53,25 +52,14 @@ class IRCGet(irc.client.SimpleIRCClient):
         # Parse search results
         if "SearchBot" in os.path.basename(self.downloader.filepath):
             lines = self.parseSearch(self.downloader.filepath)
-            selections = self.select_function(lines)
+            lineNumber = self.select_function(lines)
 
-            self.remaining = len(selections)
-
-            for select in selections:
-                line = int(select)
-                if 0 <= line < len(lines):
-                    command = self.extractCommand(lines[line])
-                    self.connection.privmsg(self.channel, command)
-
+            if 0 <= lineNumber < len(lines):
+                command = self.extractCommand(lines[lineNumber])
+                self.connection.privmsg(self.channel, command)
         else:
             archive_utils.unrar(self.downloader.filepath)
-
-            self.remaining -= 1
-            if self.remaining > 0:
-                print("Still waiting for %d downloads to complete." % (self.remaining))
-            else:
-                self.search()
-
+            self.search()
 
     def on_disconnect(self, connection, event):
         print("Disconnecting.")
@@ -114,7 +102,7 @@ def select(lines):
     for i, line in enumerate(lines):
         print('[' + str(i) + '] ' + line)
 
-    return input('Selections (space separated): ').split()
+    return int(input('Selection (line number): '))
 
 
 def main():
