@@ -10,18 +10,18 @@ import irc.client
 import jaraco.logging
 import jaraco.stream
 
+import downloader
+import archive_utils
+
 
 class IRCGet(irc.client.SimpleIRCClient):
     def __init__(self, channel, query_function, select_function):
         print("Connecting (this can take a minute)...")
         irc.client.SimpleIRCClient.__init__(self)
-        self.received_bytes = 0
         self.remaining = 0
         self.channel = channel
-        self.filename = ''
         self.query_function = query_function
         self.select_function = select_function
-        self.download_dir = 'downloads'
 
     def on_welcome(self, connection, event):
         if irc.client.is_channel(self.channel):
@@ -34,7 +34,8 @@ class IRCGet(irc.client.SimpleIRCClient):
 
     def on_ctcp(self, connection, event):
         # Here we process SEND messages.
-        # We receive the message SEND "filename" num1 num2 num3
+        # We receive the message: SEND "filename" ip port file_size
+        # TODO replace with shlex
         args = event.arguments[1].split()
         if args[0] != "SEND":
             return
@@ -43,7 +44,7 @@ class IRCGet(irc.client.SimpleIRCClient):
         s = event.arguments[1]
         if re.compile('".*"').search(s) is not None:
             quotes_index = [i for i in range(len(s)) if s[i] == '"']
-            self.filename = os.path.basename(s[quotes_index[0] + 1: quotes_index[1]])
+            filename = os.path.basename(s[quotes_index[0] + 1: quotes_index[1]])
 
             s = s[:quotes_index[0]] + s[quotes_index[1] + 1:]
 
@@ -51,37 +52,27 @@ class IRCGet(irc.client.SimpleIRCClient):
             s = s.split()
             args[2] = s[1]
             args[3] = s[2]
+            print("file size: %s" % s[3])
         else:
-            self.filename = os.path.basename(args[1])
+            filename = os.path.basename(args[1])
 
-        if not os.path.exists(self.download_dir):
-            os.makedirs(self.download_dir)
-        if os.path.exists(os.path.join(self.download_dir, self.filename)):
-            print("A file named", self.filename, "already exists. Deleting.")
-            os.remove(os.path.join(self.download_dir, self.filename))
-
-        self.file = open(os.path.join(self.download_dir, self.filename), "wb")
         peeraddress = irc.client.ip_numstr_to_quad(args[2])
         peerport = int(args[3])
         self.dcc = self.dcc_connect(peeraddress, peerport, "raw")
 
+        self.downloader = downloader.Downloader(filename=filename)
+
     def on_dccmsg(self, connection, event):
         data = event.arguments[0]
-        self.file.write(data)
-        self.received_bytes = self.received_bytes + len(data)
-        self.dcc.send_bytes(struct.pack("!I", self.received_bytes))
+        self.downloader.write(data)
+        self.dcc.send_bytes(struct.pack("!I", self.downloader.received_bytes))
 
     def on_dcc_disconnect(self, connection, event):
-        try:
-            self.file.close()
-        except:
-            pass
-        print("Received file %s (%d bytes)." % (self.filename, self.received_bytes))
-        self.received_bytes = 0
+        self.downloader.close()
 
         # Parse search results
-        if "SearchBot" in self.filename:
-            lines = self.parseSearch()
+        if "SearchBot" in os.path.basename(self.downloader.filepath):
+            lines = self.parseSearch(self.downloader.filepath)
             selections = self.select_function(lines)
 
             self.remaining = len(selections)
@@ -93,8 +84,7 @@ class IRCGet(irc.client.SimpleIRCClient):
                     self.connection.privmsg(self.channel, command)
 
         else:
-            print("Attempting unrar...")
-            os.system("unrar e \"%s\"" % os.path.join(self.download_dir, self.filename))
+            archive_utils.unrar(self.downloader.filepath)
 
             self.remaining -= 1
             if self.remaining > 0:
@@ -111,15 +101,10 @@ class IRCGet(irc.client.SimpleIRCClient):
         query = self.query_function()
         self.connection.privmsg(self.channel, "@search %s" % (query))
 
-    def parseSearch(self):
-        # TODO: make this cross-platform by removing system calls.
-        print("Extracting zip")
-        os.system("mkdir -p " + os.path.join(self.download_dir, "search"))
-        os.system("unzip \"" + os.path.join(self.download_dir, self.filename) + "\" -d "
-                + os.path.join(self.download_dir, "search"))
-        os.system("mv " + os.path.join(self.download_dir, "search", "* ")
-                        + os.path.join(self.download_dir, "searchresults.txt"))
-        with open(os.path.join(self.download_dir, "searchresults.txt"), "r") as f:
+    def parseSearch(self, filepath):
+        searchResultsPath = archive_utils.unzip(filepath)
+
+        with open(searchResultsPath, "r") as f:
             return [line for line in f]
 
     def extractCommand(self, line):
@@ -128,6 +113,7 @@ class IRCGet(irc.client.SimpleIRCClient):
 
 
 def get_args():
+    # TODO replace with saner arg parsing
     parser = argparse.ArgumentParser(
         description="Interactively search for and download files via IRC.",
     )
@@ -160,11 +146,7 @@ def main():
     # Don't crash on non UTF-8 input
     irc.client.ServerConnection.buffer_class = jaraco.stream.buffer.LenientDecodingLineBuffer
 
-    try:
-        c.connect(args.server, args.port, args.nickname)
-    except irc.client.ServerConnectionError as x:
-        print(x)
-        sys.exit(1)
+    c.connect(args.server, args.port, args.nickname)
     c.start()
 
 if __name__ == "__main__":
