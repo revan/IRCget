@@ -11,8 +11,14 @@ Also be advised this accepts all files and unzips / unrars them blindly.
 
 Requires:
 
+Python libraries:
 ```
-irc (python library)
+irc
+tqdm
+```
+
+Linux packages:
+```
 unzip
 unrar
 ```

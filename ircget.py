@@ -40,7 +40,7 @@ class IRCGet(irc.client.SimpleIRCClient):
 
         self.dcc = self.dcc_connect(irc.client.ip_numstr_to_quad(ip), int(port), "raw")
 
-        self.downloader = downloader.Downloader(filename=filename, filesize=filesize)
+        self.downloader = downloader.Downloader(filename=filename, filesize=int(filesize))
 
     def on_dccmsg(self, connection, event):
         data = event.arguments[0]
