@@ -5,6 +5,7 @@ import sys
 import struct
 import argparse
 import re
+import shlex
 
 import irc.client
 import jaraco.logging
@@ -33,34 +34,13 @@ class IRCGet(irc.client.SimpleIRCClient):
             self.connection.quit()
 
     def on_ctcp(self, connection, event):
-        # Here we process SEND messages.
-        # We receive the message: SEND "filename" ip port file_size
-        # TODO replace with shlex
-        args = event.arguments[1].split()
-        if args[0] != "SEND":
+        (command, filename, ip, port, filesize) = shlex.split(event.arguments[1])
+        if command != "SEND":
             return
 
-        # Try extract text in quotes as filename, if there are quotes
-        s = event.arguments[1]
-        if re.compile('".*"').search(s) is not None:
-            quotes_index = [i for i in range(len(s)) if s[i] == '"']
-            filename = os.path.basename(s[quotes_index[0] + 1: quotes_index[1]])
+        self.dcc = self.dcc_connect(irc.client.ip_numstr_to_quad(ip), int(port), "raw")
 
-            s = s[:quotes_index[0]] + s[quotes_index[1] + 1:]
-
-            # We've removed the quoted filename, so now we fix the address and port
-            s = s.split()
-            args[2] = s[1]
-            args[3] = s[2]
-            print("file size: %s" % s[3])
-        else:
-            filename = os.path.basename(args[1])
-
-        peeraddress = irc.client.ip_numstr_to_quad(args[2])
-        peerport = int(args[3])
-        self.dcc = self.dcc_connect(peeraddress, peerport, "raw")
-
-        self.downloader = downloader.Downloader(filename=filename)
+        self.downloader = downloader.Downloader(filename=filename, filesize=filesize)
 
     def on_dccmsg(self, connection, event):
         data = event.arguments[0]

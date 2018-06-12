@@ -3,9 +3,10 @@ import os
 
 
 class Downloader:
-    def __init__(self, filename):
+    def __init__(self, filename, filesize):
         self.received_bytes = 0
         self._filename = filename
+        self._filesize = filesize
         self.download_dir = 'downloads'
         self.filepath = os.path.join(self.download_dir, filename)
 
