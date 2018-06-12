@@ -17,7 +17,6 @@ class IRCGet(irc.client.SimpleIRCClient):
         irc.client.SimpleIRCClient.__init__(self)
         self.received_bytes = 0
         self.remaining = 0
-        self.done = False
         self.channel = channel
         self.filename = ''
         self.query_function = query_function
@@ -28,16 +27,10 @@ class IRCGet(irc.client.SimpleIRCClient):
         if irc.client.is_channel(self.channel):
             connection.join(self.channel)
             print("Joined channel")
+            self.search()
         else:
             print(self.channel, "is not a channel.")
             self.connection.quit()
-
-    def on_join(self, connection, event):
-        # JOIN message is received when anyone joins, including us
-        # 'done' flag ensures we only act on the first JOIN
-        if not self.done:
-            self.done = True
-            self.search()
 
     def on_ctcp(self, connection, event):
         # Here we process SEND messages.
