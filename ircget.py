@@ -42,7 +42,7 @@ def main():
     # Don't crash on non UTF-8 input
     irc.client.ServerConnection.buffer_class = jaraco.stream.buffer.LenientDecodingLineBuffer
 
-    c = client.IRCClient(args.channel, query, select)
+    c = client.IRCClient(args.channel, query, select, loop=True)
     c.connect(args.server, args.port, args.nickname)
     c.start()
 

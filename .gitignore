@@ -2,3 +2,4 @@
 *.iml
 downloads/
 .idea/
+test_secrets.py

@@ -11,12 +11,13 @@ import archive_utils
 
 
 class IRCClient(irc.client.SimpleIRCClient):
-    def __init__(self, channel, query_function, select_function):
+    def __init__(self, channel, query_function, select_function, loop):
         print("Connecting (this can take a minute)...")
         irc.client.SimpleIRCClient.__init__(self)
         self.channel = channel
         self.query_function = query_function
         self.select_function = select_function
+        self.loop = loop
 
     def on_welcome(self, connection, event):
         if irc.client.is_channel(self.channel):
@@ -28,9 +29,10 @@ class IRCClient(irc.client.SimpleIRCClient):
             self.connection.quit()
 
     def on_ctcp(self, connection, event):
-        (command, filename, ip, port, filesize) = shlex.split(event.arguments[1])
-        if command != "SEND":
+        if event.arguments[1].split()[0] != "SEND":
             return
+
+        (command, filename, ip, port, filesize) = shlex.split(event.arguments[1])
 
         self.dcc = self.dcc_connect(irc.client.ip_numstr_to_quad(ip), int(port), "raw")
 
@@ -54,7 +56,10 @@ class IRCClient(irc.client.SimpleIRCClient):
                 self.connection.privmsg(self.channel, command)
         else:
             archive_utils.unrar(self.downloader.filepath)
-            self.search()
+            if self.loop:
+                self.search()
+            else:
+                self.connection.disconnect()
 
     def on_disconnect(self, connection, event):
         print("Disconnecting.")
