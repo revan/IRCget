@@ -15,6 +15,7 @@ Python libraries:
 ```
 irc
 tqdm
+patool
 ```
 
 Linux packages:

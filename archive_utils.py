@@ -1,19 +1,26 @@
 
+import glob
 import os
-
+import patoolib
+import shutil
+import tempfile
 
 def unrar(filepath):
     print("Attempting unrar...")
-    os.system("unrar e \"%s\"" % filepath)
+    try:
+        patoolib.extract_archive(filepath)
+    except patoolib.util.PatoolError:
+        pass
 
 
 def unzip(filepath):
-    # TODO: make this cross-platform by removing system calls.
-    print("Extracting zip")
-    download_dir = os.path.dirname(filepath)
-    os.system("mkdir -p " + os.path.join(download_dir, "search"))
-    os.system("unzip \"" + filepath + "\" -d "
-              + os.path.join(download_dir, "search"))
-    os.system("mv " + os.path.join(download_dir, "search", "* ")
-              + os.path.join(download_dir, "searchresults.txt"))
-    return os.path.join(download_dir, "searchresults.txt")
+    print("Extracting zip.")
+    with tempfile.TemporaryDirectory() as tempDir:
+        download_dir = os.path.dirname(filepath)
+        patoolib.extract_archive(filepath, outdir=tempDir)
+
+        dest = os.path.join(download_dir, "searchresults.txt")
+
+        f = glob.glob(os.path.join(tempDir, '*'))[0]
+        shutil.move(f, dest)
+        return dest
